@@ -1,9 +1,11 @@
 package com.example.employeetracker
 
+import android.content.Intent
 import android.content.IntentSender
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.employeetracker.databinding.ActivityMainBinding
@@ -13,6 +15,11 @@ import com.google.android.gms.auth.api.identity.SignInClient
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
+import kotlin.math.log
 
 class MainActivity : AppCompatActivity() {
 
@@ -22,14 +29,46 @@ class MainActivity : AppCompatActivity() {
     private lateinit var signUpRequest: BeginSignInRequest
     private lateinit var signInRequest: BeginSignInRequest
 
+    private lateinit var firebaseAuth: FirebaseAuth
+
+    val TAG = "Firebase"
+
     private val oneTapResult = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()){ result ->
         try {
             val credential = oneTapClient.getSignInCredentialFromIntent(result.data)
             val idToken = credential.googleIdToken
             when{
                 idToken != null -> {
-                    // Got an ID token from Google. Use it to authenticate
-                    // with your backend.
+//                     Got an ID token from Google. Use it to authenticate
+//                     with your backend.
+                    val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
+                    firebaseAuth.signInWithCredential(firebaseCredential)
+                        .addOnSuccessListener { authResult ->
+                            Log.d(TAG, "Firebase: Log in successful")
+
+                            val firebaseUser = firebaseAuth.currentUser
+                            val uid = firebaseUser?.uid
+                            val email = firebaseUser?.email
+                            Log.d(TAG, "Uid: $uid")
+                            Log.d(TAG, "Email: $email")
+
+                            if (authResult.additionalUserInfo!!.isNewUser){
+                                Log.d(TAG, "Firebase: account creadted...$email")
+                                Toast.makeText(this@MainActivity, "account creadted...$email", Toast.LENGTH_SHORT).show()
+                            }
+                            else{
+                                Log.d(TAG, "Firebase: Existing user...$email")
+                                Toast.makeText(this@MainActivity, "Logged in...$email", Toast.LENGTH_SHORT).show()
+                            }
+
+                            startActivity(Intent(this, ProfileActivity::class.java))
+                            finish()
+
+                        }
+                        .addOnFailureListener { e ->
+                            Log.d(TAG, "Firebase: login failed due to ${e.message}")
+                            Toast.makeText(this@MainActivity, "login failed due to ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
                     val msg = "idToken: $idToken"
                     Snackbar.make(binding.root, msg, Snackbar.LENGTH_INDEFINITE).show()
                     Log.d("one tap", msg)
@@ -69,6 +108,9 @@ class MainActivity : AppCompatActivity() {
 
         oneTapClient = Identity.getSignInClient(this)
 
+        firebaseAuth = Firebase.auth
+        checkUser()
+
         signUpRequest = BeginSignInRequest.Builder()
             .setGoogleIdTokenRequestOptions(
                 BeginSignInRequest.GoogleIdTokenRequestOptions.Builder()
@@ -92,6 +134,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkUser() {
+        val firebaseUser = firebaseAuth.currentUser
+        if (firebaseUser != null){
+            startActivity(Intent(this, ProfileActivity::class.java))
+            finish()
+        }
+    }
+
     private fun displaySignIn() {
         oneTapClient.beginSignIn(signInRequest)
             .addOnSuccessListener(this) { result ->
@@ -105,7 +155,7 @@ class MainActivity : AppCompatActivity() {
             .addOnFailureListener(this) { e ->
                 // No Google Accounts found. Just continue presenting the signed-out UI.
                 displaySignUp()
-                Log.d("btn click", e.localizedMessage!!)
+                Log.d("btn click", "hoho+${e.localizedMessage}")
             }
     }
 
@@ -122,7 +172,7 @@ class MainActivity : AppCompatActivity() {
             .addOnFailureListener(this) { e ->
                 // No Google Accounts found. Just continue presenting the signed-out UI.
                 displaySignUp()
-                Log.d("btn click", e.localizedMessage!!)
+                Log.d("btn click", "haha+${e.localizedMessage}")
             }
     }
 }
